@@ -55,6 +55,8 @@ class Game(object):
             [None, None, None, None, None],
         ]
         
+        self.vps = 0
+        self.scribes = 0
         self.number_built_buildings = 0
         self.number_built_pillars = 0
         self.number_built_statues = 0
@@ -106,8 +108,7 @@ class Game(object):
         print("Bot builds it's {}th building on Osiris {}, {}".format(
             self.number_built_buildings, resource, value))
         print("All Osiris buildings built are {}\n".format(self.built_osiris_buildings))
-    
-              
+             
     def build_pillar(self, value, setup=False):
         if self.number_built_pillars==TOTAL_PILLARS:
             print("Cannot build more pillars\n")
@@ -157,10 +158,28 @@ class Game(object):
             dice_selection = tuple(input("Which dice is Player selecting (God Polarity Color Number)?: ").split(" "))
         
             #Delete from selection
-    
             try:
                 god, polarity, dice = dice_selection[0], dice_selection[1], tuple([dice_selection[2], int(dice_selection[3])])
                 self.available_dice[god][polarity].remove(dice)
+                #Statue bonus check
+                if self.built_statues[god]=="Player": 
+                    print("Player has statue on {}. Collect bonus.\n".format(god))
+                elif self.built_statues[god]=="Bot":
+                    
+                    god_pos = self.horus_order.index(god)
+                    # 01 23 45
+                    if 0<=god_pos<=1:
+                        self.scribes += 1
+                        print("Bot has statue on {}. Bot collects 1 scribe".format(god))
+                    elif 2<=god_pos<=3:
+                        self.vps += 1
+                        print("Bot has statue on {}. Bot collects 1 VP".format(god))
+                    elif 4<=god_pos<=5:
+                        self.scribes += 1
+                        self.vps += 1
+                        print("Bot has statue on {}. Bot collects 1 scribe and 1 VP".format(god))
+                    
+
             except (KeyError, ValueError, IndexError):
                 print("Selected dice not available. Try again\n")
                 continue
