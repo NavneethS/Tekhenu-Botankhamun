@@ -1,18 +1,16 @@
 import random
 
 """
-9
-7 8
-4 5 6
-0 1 2 3
-
 TODO:
 - Cleanup spacing and prompts
 - Print the dice better, and on every turn
 - Comments
 - Move dice init to use add_dice
 - One line commands 
-- Bot god actions
+- Ra
+- Hathor
+- Thoth
+- Osiris
 
 WORKS:
 - Base board state storage
@@ -20,12 +18,14 @@ WORKS:
 - Player prompts for turn and state changes
 - Bot action selection loop
 - Rotation, Maat, Scoring and End
+- Horus
+- Bastet
 """
 
 GOD_ORDER = ['Horus', 'Ra', 'Hathor', 'Bastet', 'Thoth', 'Osiris']
 TOTAL_BUILDINGS, TOTAL_PILLARS, TOTAL_STATUES = 10, 8, 6
 BOT_BASE_ACTIONS = [
-    "Horus", "Ra", "Hathor", "Bastet", "Thoth", "Osiris",
+    "Bastet", "Ra", "Hathor", "Horus", "Thoth", "Osiris",
     "Granite/Limestone/Bread/Papyrus", "Papyrus/Bread/Limestone/Granite", 
     "Limestone/Granite/Papyrus/Bread", "Bread/Papyrus/Granite/Limestone"
 ]
@@ -83,8 +83,8 @@ class Game(object):
         self.number_built_buildings = 1
         self.number_built_pillars = 1
         self.number_built_statues = 2
-        self.happiness = 18
-        self.population = 21
+        self.happiness = 4
+        self.population = 7
         self.blessings = 4
         self.technologies = 2
         self.decrees = 12
@@ -333,8 +333,22 @@ class Game(object):
     def do_bot_action(self, activated_god, color, value):
         if activated_god == "Horus":
             self.build_statue(value)
-
-
+        
+        elif activated_god == "Bastet":
+            if value==1 or value==2:
+                scribes_gained = 2
+            elif value==3 or value==4:
+                scribes_gained = 1
+            else:
+                scribes_gained = 0
+            self.scribes += scribes_gained
+            while value:
+                if self.happiness<self.population:
+                    self.happiness += 1
+                else:
+                    self.population += 1
+                value -= 1
+            print("Bot Happiness={}, Population={}, {} Scribes gained".format(self.happiness, self.population, scribes_gained))
 
     def bot_turn(self, round_number):
         print("Round {}, Bot turn".format(round_number))
@@ -618,7 +632,7 @@ game = Game(
         'Horus': [("Granite",5), ("Limestone",5), ("Limestone",3)], 
         'Ra': [("Gray",1), ("Granite",2), ("Papyrus",3)], 
         'Hathor': [("Bread",3), ("Papyrus",3), ("Limestone",5 ) ], 
-        'Bastet':[("Bread",2), ("Papyrus",2), ("Gray",5)], 
+        'Bastet':[("Bread",2), ("Papyrus",2), ("Gray",1)], 
         'Thoth':[("Limestone",5 ), ("Granite",4) , ("Gray",3 )], 
         'Osiris':[("Gray",3 ), ("Gray",6 ), ("Granite",5 ) ]
     }
