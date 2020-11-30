@@ -1,3 +1,4 @@
+import math
 import random
 
 """
@@ -25,7 +26,7 @@ WORKS:
 GOD_ORDER = ['Horus', 'Ra', 'Hathor', 'Bastet', 'Thoth', 'Osiris']
 TOTAL_BUILDINGS, TOTAL_PILLARS, TOTAL_STATUES = 10, 8, 6
 BOT_BASE_ACTIONS = [
-    "Bastet", "Ra", "Hathor", "Horus", "Thoth", "Osiris",
+    "Thoth", "Ra", "Hathor", "Bastet", "Horus", "Osiris",
     "Granite/Limestone/Bread/Papyrus", "Papyrus/Bread/Limestone/Granite", 
     "Limestone/Granite/Papyrus/Bread", "Bread/Papyrus/Granite/Limestone"
 ]
@@ -83,7 +84,7 @@ class Game(object):
         self.number_built_buildings = 1
         self.number_built_pillars = 1
         self.number_built_statues = 2
-        self.happiness = 4
+        self.happiness = 10
         self.population = 7
         self.blessings = 4
         self.technologies = 2
@@ -349,6 +350,49 @@ class Game(object):
                     self.population += 1
                 value -= 1
             print("Bot Happiness={}, Population={}, {} Scribes gained".format(self.happiness, self.population, scribes_gained))
+
+        elif activated_god == "Thoth":
+            number_cards = math.ceil(value/2)
+            if self.happiness<=4:
+                zone = "yellow"
+                if number_cards==1:
+                    dec, tech, bless = 0,1,0
+                if number_cards==2:
+                    dec, tech, bless = 0,1,1                    
+                if number_cards==3:
+                    dec, tech, bless = 0,1,2
+
+            elif self.happiness<=8:
+                zone = "red"
+                if number_cards==1:
+                    dec, tech, bless = 0,1,0
+                if number_cards==2:
+                    dec, tech, bless = 0,2,0                    
+                if number_cards==3:
+                    dec, tech, bless = 0,2,1
+
+            elif self.happiness<=12:
+                zone = "green"
+                if number_cards==1:
+                    dec, tech, bless = 1,0,0
+                if number_cards==2:
+                    dec, tech, bless = 1,1,0                    
+                if number_cards==3:
+                    dec, tech, bless = 1,2,0
+
+            else:
+                zone = "blue"
+                if number_cards==1:
+                    dec, tech, bless = 1,0,0
+                if number_cards==2:
+                    dec, tech, bless = 2,0,0                    
+                if number_cards==3:
+                    dec, tech, bless = 2,1,0
+
+            self.decrees += dec
+            self.technologies += tech
+            self.blessings += bless
+            print("Bot takes {} Decrees, {} Tech, {} Blessings from {} zone".format(dec, tech, bless, zone))
 
     def bot_turn(self, round_number):
         print("Round {}, Bot turn".format(round_number))
@@ -633,7 +677,7 @@ game = Game(
         'Ra': [("Gray",1), ("Granite",2), ("Papyrus",3)], 
         'Hathor': [("Bread",3), ("Papyrus",3), ("Limestone",5 ) ], 
         'Bastet':[("Bread",2), ("Papyrus",2), ("Gray",1)], 
-        'Thoth':[("Limestone",5 ), ("Granite",4) , ("Gray",3 )], 
+        'Thoth':[("Limestone",5 ), ("Granite",5) , ("Gray",3 )], 
         'Osiris':[("Gray",3 ), ("Gray",6 ), ("Granite",5 ) ]
     }
 )
