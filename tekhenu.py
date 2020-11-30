@@ -53,15 +53,15 @@ class Game(object):
         self.built_statues = {
             "Horus": None, "Ra": "Player", 
             "Hathor": None, "Bastet": None, 
-            "Thoth": "Bot", "Osiris": "Bot",
-            "Papyrus_Bread": None, "Limestone_Granite": "Player",
-            "Temple_Horizontal": "Player", "Temple_Vertical": None
+            "Thoth": "Player", "Osiris": "Bot",
+            "Papyrus_Bread": None, "Limestone_Granite": None,
+            "Temple_Horizontal": None, "Temple_Vertical": None
         } #{None, Bot, Player}
 
         self.built_osiris_buildings = {
-            "Papyrus": [None, None, None, None, None, None], #{None, Bot, Player}
-            "Bread": [None, None, None, None, None, "Player"],
-            "Limestone": [None, None, "Player", None, None, "Player"],
+            "Papyrus": [None, None, None, None, "Bot", None], #{None, Bot, Player}
+            "Bread": [None, None, "Bot", None, None, None],
+            "Limestone": [None, None, "Bot", None, None, None],
             "Granite": [None, None, None, None, None, None],
         }
 
@@ -73,7 +73,7 @@ class Game(object):
         self.built_temple_pillars = [
             [None, "Player", None, None, None], #{None, Bot, Player)}
             [None, "Player", "Bot", None, None],
-            ["Player", "Player", None, None, None],
+            ["Player", "Player", None, None, "Bot"],
             [None, None, None, None, None],
             ["Player", None, None, None, None],
         ]
@@ -99,7 +99,7 @@ class Game(object):
             self.build_osiris_building(5, "Granite")
             self.build_pillar(None, setup=True)     
         
-        self.bot_pyramid = random.sample(BOT_BASE_ACTIONS, 10)
+        self.bot_pyramid = BOT_BASE_ACTIONS #random.sample(BOT_BASE_ACTIONS, 10)
         print("Bot action pyramid is:\n {}\n{}\n{}\n{}".format(
             [self.bot_pyramid[9]], self.bot_pyramid[7:9], self.bot_pyramid[4:7], self.bot_pyramid[0:4]
             )
@@ -111,18 +111,74 @@ class Game(object):
     def build_statue(self, value):
         if self.number_built_statues==TOTAL_STATUES:
             print("Cannot build more statues\n")
-            return
+            return False
         
         god = self.horus_order[value-1]
-        if not self.built_statues[god]:
-            self.built_statues[god] = "Bot"
+        if self.built_statues[god] == None:
+            # If god spot free, build there
+            key = god
+            self.built_statues[key] = "Bot"
         else:
-            #TODO
-            pass
+            # Calculate which Osiris row has most impact in terms of ownership change
+            impacts = {}
+            for group in random.sample([("Papyrus", "Bread"), ("Limestone", "Granite")], 2):
+                impact = 0
+                for region in group:
+                    statue = [self.built_statues[r] for r in self.built_statues if region in r][0]
+                    if statue == None:
+                        new_winner = self.osiris_building_scoring(region, "Bot")
+                        old_winner = self.osiris_building_scoring(region, None)
+                        if new_winner!=old_winner:
+                            impact += 1
+                impacts[group] = impact
+
+            if impacts:        
+                # Build on spot with max impact. If tied, pick randomly since we randomized the order when examining.             
+                best_region = max(impacts, key=lambda x: impacts[x])
+                impact = impacts[best_region]
+                if impact>0:
+                    key = "_".join(best_region)
+                    self.built_statues[key] = "Bot"
+
+            if not impacts or impact==0:
+                # Either no impact or both Osiris occupied. Look at Temple next.
+                horizontal_pillars, vertical_pillars = 0,0 
+                if self.built_statues["Temple_Horizontal"] == None:
+                    horizontal_pillars = [self.built_temple_pillars[2][x] for x in range(5)].count("Bot")
+                if self.built_statues["Temple_Vertical"] == None:
+                    vertical_pillars = [self.built_temple_pillars[x][2] for x in range(5)].count("Bot")
+                
+                # Build on row/col with more pillars. 
+                if horizontal_pillars>vertical_pillars:
+                    key = "Temple_Horizontal"
+                    self.built_statues[key] = "Bot"
+                    print("Bot scores {} VPs for Pillars".format(3*horizontal_pillars))
+                    self.vps += 3*horizontal_pillars
+                elif horizontal_pillars<vertical_pillars:
+                    key = "Temple_Vertical"
+                    self.built_statues[key] = "Bot"
+                    print("Bot scores {} VPs for Pillars".format(3*vertical_pillars))
+                    self.vps += 3*vertical_pillars
+                    
+                # Both equal. Pick randomly
+                elif horizontal_pillars!=0:
+                    key = random.choice(["Temple_Horizontal", "Temple_Vertical"])
+                    self.built_statues[key] = "Bot"
+                    vps = 3*horizontal_pillars if key=="Temple_Horizontal" else 3*vertical_pillars
+                    print("Bot scores {} VPs for Pillars".format(vps))
+                    self.vps += vps
+                
+                # Both Temple occupied
+                else:
+                    print("All Statues occupied. Bot scores 3 VP")
+                    self.vps += 3
+                    return False
+                
 
         self.number_built_statues += 1
-        print("Bot builds it's {}th statue on {}".format(self.number_built_statues, god))
+        print("Bot builds it's {}th statue on {}".format(self.number_built_statues, key))
         print("All statues built are {}\n".format(self.built_statues))
+        return True
                
     def build_osiris_building(self, value, resource=None):
         if self.number_built_buildings==TOTAL_BUILDINGS:
@@ -274,9 +330,11 @@ class Game(object):
 
         print("Player turn done")
   
-    def do_bot_action(self, activated_god):
-        #TODO
-        pass
+    def do_bot_action(self, activated_god, color, value):
+        if activated_god == "Horus":
+            self.build_statue(value)
+
+
 
     def bot_turn(self, round_number):
         print("Round {}, Bot turn".format(round_number))
@@ -371,11 +429,10 @@ class Game(object):
         elif self.built_statues[activated_god]=="Bot":
             self.statue_bonus(activated_god)
 
-        self.do_bot_action(activated_god)
+        self.do_bot_action(activated_god, die_pick[0], die_pick[1])
 
-    def osiris_building_scoring(self, region):
-        statue = [self.built_statues[r] for r in self.built_statues if region in r]
-        pieces = statue + self.built_osiris_buildings[region]
+    def osiris_building_scoring(self, region, statue):
+        pieces = [statue] + self.built_osiris_buildings[region]
         bot_count, player_count = pieces.count("Bot"), pieces.count("Player")
         winner = None
 
@@ -389,15 +446,11 @@ class Game(object):
                     winner = piece
                     break
             
-        if winner=="Player":
-            print("Player has {} pieces, Bot has {} in Osiris {}. Player scores 3 VPs".format(player_count, bot_count, region))
-        elif winner=="Bot":
-            print("Player has {} pieces, Bot has {} in Osiris {}. Bot scores 3 VPs".format(player_count, bot_count, region))    
-            self.vps += 3
-        else:
+        if not winner:
             assert player_count == 0
             assert bot_count == 0
-            print("Player has {} pieces, Bot has {} in Osiris {}. Nobody scores 3 VPs".format(player_count, bot_count, region))    
+        
+        return winner
 
     def temple_scoring(self):
         pieces = self.built_temple_buildings["Horizontal"] + self.built_temple_buildings["Vertical"] + [self.built_statues["Temple_Horizontal"], self.built_statues["Temple_Vertical"]]
@@ -500,9 +553,19 @@ class Game(object):
 
                     if round_number%8==0:
                         print("Scoring Phase")
-                        
+
                         for region in self.built_osiris_buildings:
-                            self.osiris_building_scoring(region)
+                            statue = [self.built_statues[r] for r in self.built_statues if region in r][0]
+                            winner = self.osiris_building_scoring(region, statue)
+                            if winner=="Player":
+                                print("Player has {} pieces, Bot has {} in Osiris {}. Player scores 3 VPs".format(player_count, bot_count, region))
+                            elif winner=="Bot":
+                                self.vps += 3
+                                print("Player has {} pieces, Bot has {} in Osiris {}. Bot scores 3 VPs".format(player_count, bot_count, region))    
+                            else:
+                                print("Player has {} pieces, Bot has {} in Osiris {}. Nobody scores 3 VPs".format(player_count, bot_count, region))  
+
+
                         self.temple_scoring()
                         self.statue_scoring()     
                         self.happiness_scoring()                   
