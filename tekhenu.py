@@ -12,14 +12,13 @@ TODO:
 - Comments
 - Move dice init to use add_dice
 - One line commands 
-- Breaks for final scoring
-- Bot action selection loop
 - Bot god actions
 
 WORKS:
 - Base board state storage
-- Player prompts for turn and state changes
 - Setup
+- Player prompts for turn and state changes
+- Bot action selection loop
 - Rotation, Maat, Scoring and End
 """
 
@@ -182,7 +181,6 @@ class Game(object):
                     
     def player_turn(self, round_number):
         print("Round {}, Player turn".format(round_number))
-
         print("Available dice:")
         self.print_dice()
 
@@ -275,19 +273,100 @@ class Game(object):
 
         print("Player turn done")
   
+    def do_bot_action(self, activated_god):
+        #TODO
+        pass
+
     def bot_turn(self, round_number):
         print("Round {}, Bot turn".format(round_number))
-        
+        print("Available dice:")
+        self.print_dice()
+
         action_number = self.bot_actions[(round_number-1)%4]
         action = self.bot_pyramid[action_number]
-        print("Bot selects action {}\n".format(action))
 
+        def god_die_pick(god):
+            # pick highest pure/tainted
+            candidates = {polarity:dice for polarity,dice in self.available_dice[action].items() if polarity!="Forbidden"}
+            shortlist = {}
+            polarity, final_pick = None, None
+            maxval = -999
+            for polarity, dice in candidates.items():
+                for d in dice:
+                    maxval = max(maxval, d[1])
+            
+            for polarity, dice in candidates.items():
+                shortlist[polarity] = []
+                for d in dice:
+                    if d[1]==maxval:
+                        shortlist[polarity].append(d)
+            
+            if shortlist["Pure"]:
+                polarity, final_pick = "Pure", random.choice(shortlist["Pure"])
+            elif shortlist["Tainted"]:
+                polarity, final_pick = "Tainted", random.choice(shortlist["Tainted"])
+
+            return polarity, final_pick
+
+        def color_die_pick(color):
+
+            maxval = -999
+            for god, polarities in self.available_dice.items():
+                for polarity, dice in polarities.items():
+                    for d in dice:
+                        if d[0]==color and polarity!="Forbidden":
+                            maxval = max(maxval, d[1])                
+            
+
+            candidates = []
+            for god, polarities in self.available_dice.items():
+                for polarity, dice in polarities.items():
+                    for d in dice:
+                        if d[0]==color and d[1]==maxval and polarity!="Forbidden":
+                            candidates.append((god, polarity, d))
+            
+            if len(candidates)==1:
+                return candidates[0]
+            elif len(candidates)==0:
+                return None, None, None
+            else:
+                shortlist = [x for x in candidates if self.built_statues[x[0]]=="Bot"]
+                print("SL", shortlist)
+                if shortlist:
+                    for god in self.horus_order[::-1]:
+                        for x in shortlist:
+                            if x[0]==god:
+                                return x
+                else:
+                    return random.choice(candidates)
+
+            
         if action in GOD_ORDER:
-            #TODO
-            pass
+            while True:
+                polarity, die_pick = god_die_pick(action)
+                if die_pick:
+                    activated_god = action
+                    break
+                else:         
+                    current = GOD_ORDER.index(action)
+                    action = GOD_ORDER[(current-1)%6]
+                    continue
+
         else:
-            #TODO
-            pass
+            colors = action.split('/')
+            i=0
+            while True:
+                activated_god, polarity, die_pick = color_die_pick(colors[i])
+                if die_pick:
+                    break
+                else:
+                    i+=1
+                    continue
+
+        print("Bot selects action {} :: {} {} {} {}\n".format(action, activated_god, polarity, die_pick[0], die_pick[1]))
+        self.available_dice[activated_god][polarity].remove(die_pick)
+        self.starting_dice[activated_god].remove(die_pick)
+        self.do_bot_action(activated_god)
 
     def osiris_building_scoring(self, region):
         statue = [self.built_statues[r] for r in self.built_statues if region in r]
@@ -376,7 +455,7 @@ class Game(object):
 
     def game_loop(self):
         
-        for round_number in range(16,17):
+        for round_number in range(1,17):
             
             if self.player_order[0] == "Player":
                 self.player_turn(round_number)
@@ -423,6 +502,7 @@ class Game(object):
                         self.statue_scoring()     
                         self.happiness_scoring()                   
                         self.card_scoring()
+                        print("Scoring summary: Bot scored {} VPs".format(self.vps))
 
                         if round_number%16==0:
                             to_vps = 0
@@ -433,8 +513,9 @@ class Game(object):
 
                             self.vps += decree_vps+to_vps+scribe_vps
                             print("Bot scored {} VPs for Decrees, {} for Scribes, and {} for Turn Order.".format(decree_vps, scribe_vps, to_vps))
+                            print("\nFinal Bot Score: {} VPs".format(self.vps))
+                            return
                             
-                        print("Scoring summary: Bot scored {} VPs".format(self.vps))
                     
                 def add_dice(region):
                     while True:
@@ -446,7 +527,7 @@ class Game(object):
                                 continue
                             self.starting_dice[region].append((c,d))
                             return 
-                        except IndexError:
+                        except (IndexError, ValueError):
                             print("Invalid new dice. Try Again.")
                             continue
                         
@@ -466,11 +547,11 @@ game = Game(
     horus_order=['Horus', 'Ra', 'Hathor', 'Bastet', 'Thoth', 'Osiris'],
     first_sunny="Horus",
     starting_dice={
-        'Horus': [("Granite",5), ("Limestone",3), ("Limestone",3)], 
+        'Horus': [("Granite",5), ("Limestone",5), ("Limestone",3)], 
         'Ra': [("Gray",1), ("Granite",2), ("Papyrus",3)], 
-        'Hathor': [("Bread",3), ("Papyrus",5), ("Granite",4)], 
+        'Hathor': [("Bread",3), ("Papyrus",3), ("Limestone",5 ) ], 
         'Bastet':[("Bread",2), ("Papyrus",2), ("Gray",5)], 
-        'Thoth':[("Limestone",5 ), ("Limestone",5 ), ("Gray",3 )], 
+        'Thoth':[("Limestone",5 ), ("Granite",4) , ("Gray",3 )], 
         'Osiris':[("Gray",3 ), ("Gray",6 ), ("Granite",5 ) ]
     }
 )
