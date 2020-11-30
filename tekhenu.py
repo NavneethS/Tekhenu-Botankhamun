@@ -179,6 +179,20 @@ class Game(object):
                 available_dice[god][polarity].append(d)
         return available_dice
                     
+    def statue_bonus(self, god):
+        god_pos = self.horus_order.index(god)
+        # 01 23 45
+        if 0<=god_pos<=1:
+            self.scribes += 1
+            print("Bot has statue on {}. Bot collects 1 scribe".format(god))
+        elif 2<=god_pos<=3:
+            self.vps += 1
+            print("Bot has statue on {}. Bot collects 1 VP".format(god))
+        elif 4<=god_pos<=5:
+            self.scribes += 1
+            self.vps += 1
+            print("Bot has statue on {}. Bot collects 1 scribe and 1 VP".format(god))
+
     def player_turn(self, round_number):
         print("Round {}, Player turn".format(round_number))
         print("Available dice:")
@@ -197,20 +211,7 @@ class Game(object):
                 if self.built_statues[god]=="Player": 
                     print("Player has statue on {}. Collect bonus.\n".format(god))
                 elif self.built_statues[god]=="Bot":
-                    
-                    god_pos = self.horus_order.index(god)
-                    # 01 23 45
-                    if 0<=god_pos<=1:
-                        self.scribes += 1
-                        print("Bot has statue on {}. Bot collects 1 scribe".format(god))
-                    elif 2<=god_pos<=3:
-                        self.vps += 1
-                        print("Bot has statue on {}. Bot collects 1 VP".format(god))
-                    elif 4<=god_pos<=5:
-                        self.scribes += 1
-                        self.vps += 1
-                        print("Bot has statue on {}. Bot collects 1 scribe and 1 VP".format(god))
-                    
+                    self.statue_bonus(god)
 
             except (KeyError, ValueError, IndexError):
                 print("Selected dice not available. Try again\n")
@@ -309,7 +310,6 @@ class Game(object):
             return polarity, final_pick
 
         def color_die_pick(color):
-
             maxval = -999
             for god, polarities in self.available_dice.items():
                 for polarity, dice in polarities.items():
@@ -317,7 +317,6 @@ class Game(object):
                         if d[0]==color and polarity!="Forbidden":
                             maxval = max(maxval, d[1])                
             
-
             candidates = []
             for god, polarities in self.available_dice.items():
                 for polarity, dice in polarities.items():
@@ -342,14 +341,14 @@ class Game(object):
 
             
         if action in GOD_ORDER:
+            activated_god = action
             while True:
-                polarity, die_pick = god_die_pick(action)
+                polarity, die_pick = god_die_pick(activated_god)
                 if die_pick:
-                    activated_god = action
                     break
                 else:         
-                    current = GOD_ORDER.index(action)
-                    action = GOD_ORDER[(current-1)%6]
+                    current = GOD_ORDER.index(activated_god)
+                    activated_god = GOD_ORDER[(current-1)%6]
                     continue
 
         else:
@@ -366,6 +365,12 @@ class Game(object):
         print("Bot selects action {} :: {} {} {} {}\n".format(action, activated_god, polarity, die_pick[0], die_pick[1]))
         self.available_dice[activated_god][polarity].remove(die_pick)
         self.starting_dice[activated_god].remove(die_pick)
+        #Statue bonus check
+        if self.built_statues[activated_god]=="Player": 
+            print("Player has statue on {}. Collect bonus.\n".format(activated_god))
+        elif self.built_statues[activated_god]=="Bot":
+            self.statue_bonus(activated_god)
+
         self.do_bot_action(activated_god)
 
     def osiris_building_scoring(self, region):
