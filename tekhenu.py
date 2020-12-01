@@ -1,5 +1,6 @@
 import math
 import random
+from itertools import product
 
 """
 TODO:
@@ -8,9 +9,8 @@ TODO:
 - Comments
 - Move dice init to use add_dice
 - One line commands 
-- Osiris
 
-WORKS:
+DONE:
 - Base board state storage
 - Setup
 - Player prompts for turn and state changes
@@ -21,12 +21,13 @@ WORKS:
 - Hathor
 - Bastet
 - Thoth
+- Osiris
 """
 
 GOD_ORDER = ['Horus', 'Ra', 'Hathor', 'Bastet', 'Thoth', 'Osiris']
 TOTAL_BUILDINGS, TOTAL_PILLARS, TOTAL_STATUES = 10, 8, 6
 BOT_BASE_ACTIONS = [
-    "Hathor", "Ra", "Horus", "Bastet", "Thoth", "Osiris",
+    "Horus", "Ra", "Hathor", "Bastet", "Thoth", "Osiris",
     "Granite/Limestone/Bread/Papyrus", "Papyrus/Bread/Limestone/Granite", 
     "Limestone/Granite/Papyrus/Bread", "Bread/Papyrus/Granite/Limestone"
 ]
@@ -41,6 +42,7 @@ POSSIBLE_BOT_ACTIONS = [
     [0,1,2,3], [0,1,2,6], [0,1,5,6], [0,1,5,8],
     [0,4,5,6], [0,4,5,8], [0,4,7,8], [0,4,7,9],
 ]
+OSIRIS_ORDER = ['Papyrus', 'Bread', 'Limestone', 'Granite']
 
 
 class Game(object):
@@ -52,43 +54,43 @@ class Game(object):
         self.available_dice = self.assign_polarity()
        
         self.built_statues = {
-            "Horus": None, "Ra": "Player", 
+            "Horus": None, "Ra": None, 
             "Hathor": None, "Bastet": None, 
-            "Thoth": "Player", "Osiris": "Bot",
+            "Thoth": None, "Osiris": None,
             "Papyrus_Bread": None, "Limestone_Granite": None,
-            "Temple_Horizontal": None, "Temple_Vertical": "Bot"
+            "Temple_Horizontal": None, "Temple_Vertical": None
         } #{None, Bot, Player}
 
         self.built_osiris_buildings = {
-            "Papyrus": [None, None, None, None, "Bot", None], #{None, Bot, Player}
-            "Bread": [None, None, "Bot", None, None, None],
-            "Limestone": [None, None, "Bot", None, None, None],
+            "Papyrus": [None, None, None, None, None, None], #{None, Bot, Player}
+            "Bread": [None, None, None, None, None, None],
+            "Limestone": [None, None, None, None, None, None],
             "Granite": [None, None, None, None, None, None],
         }
 
         self.built_temple_buildings = {
             "Horizontal": [None, None, None, None, None], #{None, Bot, Player}
-            "Vertical": [None, None, "Bot", None, None], #{None, Bot, Player}
+            "Vertical": [None, None, None, None, None], #{None, Bot, Player}
         }
 
         self.built_temple_pillars = [
-            [None, None, "Bot", None, "Bot"], #{None, Bot, Player)}
+            [None, None, None, None, None], #{None, Bot, Player)}
             [None, None, None, None, None],
             [None, None, None, None, None],
-            [None, None, "Bot", None, None],
+            [None, None, None, None, None],
             [None, None, None, None, None],
         ]
         
         self.vps = 0
         self.scribes = 0
-        self.number_built_buildings = 1
-        self.number_built_pillars = 1
-        self.number_built_statues = 2
-        self.happiness = 10
+        self.number_built_buildings = 0
+        self.number_built_pillars = 0
+        self.number_built_statues = 0
+        self.happiness = 4
         self.population = 7
-        self.blessings = 4
-        self.technologies = 2
-        self.decrees = 12
+        self.blessings = 0
+        self.technologies = 0
+        self.decrees = 0
         self.player_order = ["Bot", "Player"]
         
         print("Bot starts with {} Destiny Card\n".format(random.choice(["Gold", "Scribe"])))
@@ -100,7 +102,7 @@ class Game(object):
             self.build_osiris_building(5, "Granite")
             self.build_pillar(None, setup=True)     
         
-        self.bot_pyramid = BOT_BASE_ACTIONS #random.sample(BOT_BASE_ACTIONS, 10)
+        self.bot_pyramid = random.sample(BOT_BASE_ACTIONS, 10)
         print("Bot action pyramid is:\n {}\n{}\n{}\n{}".format(
             [self.bot_pyramid[9]], self.bot_pyramid[7:9], self.bot_pyramid[4:7], self.bot_pyramid[0:4]
             )
@@ -186,15 +188,19 @@ class Game(object):
             print("Cannot build more buildings\n")
             return
         
-        if resource:
-            self.built_osiris_buildings[resource][value-1] = "Bot" #TODO: occupied?
-        else:
-            #TODO
-            pass
-        
+        start = OSIRIS_ORDER.index(resource)
+        resource_order = OSIRIS_ORDER[start:] + OSIRIS_ORDER[:start] #to cycle through the order
+        start = list(range(5,-1,-1)).index(value-1)
+        value_order = list(range(5,-1,-1))[start:] + list(range(5,-1,-1))[:start]
+
+        for value, resource in product(value_order, resource_order):
+            if self.built_osiris_buildings[resource][value] == None:
+                break
+
+        self.built_osiris_buildings[resource][value] = "Bot"
         self.number_built_buildings += 1
         print("Bot builds it's {}th building on Osiris {}, {}".format(
-            self.number_built_buildings, resource, value))
+            self.number_built_buildings, resource, value+1))
         print("All Osiris buildings built are {}\n".format(self.built_osiris_buildings))
              
     def build_pillar(self, value, setup=False):
@@ -314,7 +320,6 @@ class Game(object):
         print("Bot builds it's {}th building on Temple {}, {}".format(
             self.number_built_buildings, position, row))
         print("All Temple buildings built are {}\n".format(self.built_temple_buildings))
-
 
     def assign_polarity(self):
         dice = self.starting_dice
@@ -504,6 +509,19 @@ class Game(object):
             self.blessings += bless
             print("Bot takes {} Decrees, {} Tech, {} Blessings from {} zone".format(dec, tech, bless, zone))
 
+        elif activated_god == "Osiris":
+            if color == "Gray":
+                empty_spots = {region: self.built_osiris_buildings[region].count(None) for region in self.built_osiris_buildings}
+                most_empty_region = max(empty_spots, key=lambda x: empty_spots[x])
+                most_empty = empty_spots[most_empty_region]
+                for region in self.built_osiris_buildings:
+                    if empty_spots[region]==most_empty:
+                        resource = region
+                        break
+            else:
+                resource = color
+            self.build_osiris_building(value, resource)
+
     def bot_turn(self, round_number):
         print("Round {}, Bot turn".format(round_number))
         print("Available dice:")
@@ -514,7 +532,7 @@ class Game(object):
 
         def god_die_pick(god):
             # pick highest pure/tainted
-            candidates = {polarity:dice for polarity,dice in self.available_dice[action].items() if polarity!="Forbidden"}
+            candidates = {polarity:dice for polarity,dice in self.available_dice[god].items() if polarity!="Forbidden"}
             shortlist = {}
             polarity, final_pick = None, None
             maxval = -999
@@ -780,15 +798,15 @@ class Game(object):
 # Driver loop
 game = Game(
     difficulty="Medium", 
-    horus_order=['Horus', 'Ra', 'Hathor', 'Bastet', 'Thoth', 'Osiris'],
-    first_sunny="Horus",
+    horus_order=GOD_ORDER,
+    first_sunny="Ra",
     starting_dice={
-        'Horus': [("Granite",5), ("Limestone",5), ("Limestone",3)], 
-        'Ra': [("Gray",1), ("Granite",2), ("Papyrus",3)], 
-        'Hathor': [("Bread",3), ("Papyrus",3), ("Limestone",5 ) ], 
-        'Bastet':[("Bread",2), ("Papyrus",2), ("Gray",1)], 
-        'Thoth':[("Limestone",5 ), ("Granite",5) , ("Gray",3 )], 
-        'Osiris':[("Gray",3 ), ("Gray",6 ), ("Granite",5 ) ]
+        'Horus': [("Bread",3), ("Granite",5), ("Limestone",3), ("Granite", 6)], 
+        'Ra': [("Gray",1), ("Granite",2)], 
+        'Hathor': [("Bread",3)], 
+        'Bastet':[("Papyrus",6), ("Papyrus",2), ("Gray",1), ("Limestone",1)], 
+        'Thoth':[("Limestone",5), ("Gray",3 )], 
+        'Osiris':[("Gray",3), ("Gray",2), ("Granite",5), ("Granite",4)]
     }
 )
 game.game_loop()
