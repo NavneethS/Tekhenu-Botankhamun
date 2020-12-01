@@ -8,7 +8,6 @@ TODO:
 - Comments
 - Move dice init to use add_dice
 - One line commands 
-- Hathor
 - Osiris
 
 WORKS:
@@ -19,6 +18,7 @@ WORKS:
 - Rotation, Maat, Scoring and End
 - Horus
 - Ra
+- Hathor
 - Bastet
 - Thoth
 """
@@ -26,7 +26,7 @@ WORKS:
 GOD_ORDER = ['Horus', 'Ra', 'Hathor', 'Bastet', 'Thoth', 'Osiris']
 TOTAL_BUILDINGS, TOTAL_PILLARS, TOTAL_STATUES = 10, 8, 6
 BOT_BASE_ACTIONS = [
-    "Ra", "Horus", "Hathor", "Bastet", "Thoth", "Osiris",
+    "Hathor", "Ra", "Horus", "Bastet", "Thoth", "Osiris",
     "Granite/Limestone/Bread/Papyrus", "Papyrus/Bread/Limestone/Granite", 
     "Limestone/Granite/Papyrus/Bread", "Bread/Papyrus/Granite/Limestone"
 ]
@@ -56,7 +56,7 @@ class Game(object):
             "Hathor": None, "Bastet": None, 
             "Thoth": "Player", "Osiris": "Bot",
             "Papyrus_Bread": None, "Limestone_Granite": None,
-            "Temple_Horizontal": None, "Temple_Vertical": None
+            "Temple_Horizontal": None, "Temple_Vertical": "Bot"
         } #{None, Bot, Player}
 
         self.built_osiris_buildings = {
@@ -68,14 +68,14 @@ class Game(object):
 
         self.built_temple_buildings = {
             "Horizontal": [None, None, None, None, None], #{None, Bot, Player}
-            "Vertical": [None, None, None, None, None], #{None, Bot, Player}
+            "Vertical": [None, None, "Bot", None, None], #{None, Bot, Player}
         }
 
         self.built_temple_pillars = [
-            [None, None, None, None, None], #{None, Bot, Player)}
+            [None, None, "Bot", None, "Bot"], #{None, Bot, Player)}
             [None, None, None, None, None],
             [None, None, None, None, None],
-            [None, None, None, None, None],
+            [None, None, "Bot", None, None],
             [None, None, None, None, None],
         ]
         
@@ -283,6 +283,39 @@ class Game(object):
             self.number_built_pillars, final_row, final_col))
         print("All pillars built are {}\n".format(self.built_temple_pillars))
         
+    def build_temple_building(self, value):
+        if self.number_built_buildings==TOTAL_BUILDINGS:
+            print("Cannot build more buildings\n")
+            return
+
+        all_pillars = {}
+        for i in range(5):
+            if self.built_temple_buildings["Horizontal"][i] == None:
+                num_pillars = [self.built_temple_pillars[i][j] for j in range(5)].count("Bot")
+                all_pillars[("Horizontal", i)] = num_pillars
+            if self.built_temple_buildings["Vertical"][i] == None:
+                num_pillars = [self.built_temple_pillars[j][i] for j in range(5)].count("Bot")
+                all_pillars[("Vertical", i)] = num_pillars
+        
+        max_spot = max(all_pillars, key=lambda x: all_pillars[x])
+        most_pillars = all_pillars[max_spot]
+        candidates = [x for x in all_pillars if all_pillars[x]==most_pillars]
+        if len(candidates)==1:
+            position, row = candidates[0]
+        else:
+            position, row = random.choice(candidates)
+        vps = 3*most_pillars
+
+        self.number_built_buildings += 1
+        self.population += value
+        self.vps += vps
+        print("Bot scores {} VPs and gains {} Population".format(vps, value))
+        self.built_temple_buildings[position][row] = "Bot"
+        print("Bot builds it's {}th building on Temple {}, {}".format(
+            self.number_built_buildings, position, row))
+        print("All Temple buildings built are {}\n".format(self.built_temple_buildings))
+
+
     def assign_polarity(self):
         dice = self.starting_dice
         start = GOD_ORDER.index(self.first_sunny)
@@ -409,6 +442,8 @@ class Game(object):
         elif activated_god == "Ra":
             self.build_pillar(value)
 
+        elif activated_god == "Hathor":
+            self.build_temple_building(value)
         
         elif activated_god == "Bastet":
             if value==1 or value==2:
