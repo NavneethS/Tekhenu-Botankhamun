@@ -8,9 +8,7 @@ TODO:
 - Comments
 - Move dice init to use add_dice
 - One line commands 
-- Ra
 - Hathor
-- Thoth
 - Osiris
 
 WORKS:
@@ -20,13 +18,15 @@ WORKS:
 - Bot action selection loop
 - Rotation, Maat, Scoring and End
 - Horus
+- Ra
 - Bastet
+- Thoth
 """
 
 GOD_ORDER = ['Horus', 'Ra', 'Hathor', 'Bastet', 'Thoth', 'Osiris']
 TOTAL_BUILDINGS, TOTAL_PILLARS, TOTAL_STATUES = 10, 8, 6
 BOT_BASE_ACTIONS = [
-    "Thoth", "Ra", "Hathor", "Bastet", "Horus", "Osiris",
+    "Ra", "Horus", "Hathor", "Bastet", "Thoth", "Osiris",
     "Granite/Limestone/Bread/Papyrus", "Papyrus/Bread/Limestone/Granite", 
     "Limestone/Granite/Papyrus/Bread", "Bread/Papyrus/Granite/Limestone"
 ]
@@ -67,16 +67,16 @@ class Game(object):
         }
 
         self.built_temple_buildings = {
-            "Horizontal": [None, "Player", "Player", None, None], #{None, Bot, Player}
-            "Vertical": ["Player", None, "Bot", None, None] #{None, Bot, Player}
+            "Horizontal": [None, None, None, None, None], #{None, Bot, Player}
+            "Vertical": [None, None, None, None, None], #{None, Bot, Player}
         }
 
         self.built_temple_pillars = [
-            [None, "Player", None, None, None], #{None, Bot, Player)}
-            [None, "Player", "Bot", None, None],
-            ["Player", "Player", None, None, "Bot"],
+            [None, None, None, None, None], #{None, Bot, Player)}
             [None, None, None, None, None],
-            ["Player", None, None, None, None],
+            [None, None, None, None, None],
+            [None, None, None, None, None],
+            [None, None, None, None, None],
         ]
         
         self.vps = 0
@@ -203,13 +203,84 @@ class Game(object):
             return
         
         if setup:
-            row,col = 2,2
-            self.built_temple_pillars[row][col] = "Bot"
+            final_row, final_col = 2,2
+            max_vps = 0
+            self.built_temple_pillars[final_row][final_col] = "Bot"
+
+        else:
+            base_vps = math.ceil(value/2)
+            possible_vps = {}
+            for r in range(5):
+                for c in range(5):
+                    # Sum up VPs from any buildings and from all neighbors
+                    if self.built_temple_pillars[r][c]==None:
+                        vps = 0
+                        vps += 1 if self.built_temple_buildings["Horizontal"][r] else 0
+                        vps += 1 if self.built_temple_buildings["Vertical"][c] else 0
+                        
+                        def get_neighbors(r,c):
+                            top = True if r==0 else bool(self.built_temple_pillars[r-1][c])
+                            bottom = True if r==4 else bool(self.built_temple_pillars[r+1][c])
+                            left = True if c==0 else bool(self.built_temple_pillars[r][c-1])
+                            right = True if c==4 else bool(self.built_temple_pillars[r][c+1])
+                            return [top, bottom, left, right].count(True)
+
+                        vps += get_neighbors(r,c)
+                        possible_vps[(r,c)] = vps+base_vps
+            
+            best_spot = max(possible_vps, key=lambda x: possible_vps[x])
+            max_vps = possible_vps[best_spot]
+            candidates = [(r,c) for r,c in possible_vps if possible_vps[(r,c)]==max_vps]
+            # Pick the best VPS
+            if len(candidates)==1:
+                final_row, final_col = candidates[0]
+            else:
+                # If multiple max VPs, pick the one with most Bot buildings
+                shortlist = [(r,c) for r,c in candidates if self.built_temple_buildings['Horizontal'][r]=="Bot" or self.built_temple_buildings['Vertical'][c]=="Bot"]
+                if not shortlist:
+                    shortlist = candidates
+                if len(candidates)==1:
+                    final_row, final_col = shortlist[0]
+                else:
+                    # If multiple bot buildings, pick the one closer to center:
+                    # 0 1 1 1 0
+                    # 1 2 3 2 1 
+                    # 1 3 4 3 1
+                    # 1 2 3 2 1
+                    # 0 1 1 1 0
+                    center_scores = {}
+                    for r,c in shortlist:
+                        if r==0 or r==4:
+                            score = 0
+                        elif r==1 or r==3:
+                            score = 1
+                        else:
+                            score = 2
+                        if c==0 or c==4:
+                            score += 0
+                        elif c==1 or c==3:
+                            score += 1
+                        else:
+                            score += 2
+                        center_scores[(r,c)] = score
+                    
+                    best_spot = max(center_scores, key=lambda x: center_scores[x])
+                    max_score = center_scores[best_spot]
+                    shorterlist = [(r,c) for r,c in center_scores if center_scores[(r,c)]==max_score]
+                    if len(shorterlist)==1:
+                        final_row, final_col = shorterlist[0]
+                    else:
+                        # If multiple closest to center, pick random
+                        final_row, final_col = random.choice(shorterlist)
 
         
+        self.built_temple_pillars[final_row][final_col] = "Bot"
+        print("Bot scores {} VPs for Pillar".format(max_vps))
+        self.vps += max_vps
+
         self.number_built_pillars += 1
         print("Bot builds it's {}th pillar on {},{}".format(
-            self.number_built_pillars,row, col))
+            self.number_built_pillars, final_row, final_col))
         print("All pillars built are {}\n".format(self.built_temple_pillars))
         
     def assign_polarity(self):
@@ -334,6 +405,10 @@ class Game(object):
     def do_bot_action(self, activated_god, color, value):
         if activated_god == "Horus":
             self.build_statue(value)
+
+        elif activated_god == "Ra":
+            self.build_pillar(value)
+
         
         elif activated_god == "Bastet":
             if value==1 or value==2:
