@@ -24,13 +24,17 @@ DONE:
 - Osiris
 """
 
-GOD_ORDER = ['Horus', 'Ra', 'Hathor', 'Bastet', 'Thoth', 'Osiris']
 TOTAL_BUILDINGS, TOTAL_PILLARS, TOTAL_STATUES = 10, 8, 6
+
+GOD_ORDER = ['Horus', 'Ra', 'Hathor', 'Bastet', 'Thoth', 'Osiris']
+
+# Pyramid tiles
 BOT_BASE_ACTIONS = [
     "Horus", "Ra", "Hathor", "Bastet", "Thoth", "Osiris",
     "Granite/Limestone/Bread/Papyrus", "Papyrus/Bread/Limestone/Granite", 
     "Limestone/Granite/Papyrus/Bread", "Bread/Papyrus/Granite/Limestone"
 ]
+
 LIGHTING = {
     "Limestone": {"Sunny":"Pure", "Shaded":"Tainted", "Dark":"Forbidden"},
     "Papyrus": {"Sunny":"Tainted", "Shaded":"Pure", "Dark":"Forbidden"},
@@ -38,20 +42,41 @@ LIGHTING = {
     "Bread": {"Sunny":"Forbidden", "Shaded":"Pure", "Dark":"Tainted"},
     "Gray": {"Sunny":"Tainted", "Shaded":"Tainted", "Dark":"Tainted"},
 }
+
+# If pyramid looks like 0123/456/78/9, these are the 4 action orders possible
 POSSIBLE_BOT_ACTIONS = [
     [0,1,2,3], [0,1,2,6], [0,1,5,6], [0,1,5,8],
     [0,4,5,6], [0,4,5,8], [0,4,7,8], [0,4,7,9],
 ]
+
 OSIRIS_ORDER = ['Papyrus', 'Bread', 'Limestone', 'Granite']
 
 
 class Game(object):
     def __init__(self, difficulty, horus_order, first_sunny, starting_dice):
+        """
+        Board state setup and bot init
+        Params:
+          - difficulty (str): {Easy, Medium, Hard}
+          - horus_order (list): 6 Gods in order from 1-6 on Horus
+          - first_sunny (str): {Horus ... Osiris} starting sunny God
+          - starting_dice (dict): {god: [(color, value) ... ] ..} starting dice on the board. 3 per God.
+        """
+        self.horus_order = horus_order 
+        self.first_sunny = first_sunny 
         
-        self.horus_order = horus_order #1..6
-        self.first_sunny = first_sunny
-        self.starting_dice = starting_dice
-        self.available_dice = self.assign_polarity()
+        # god: [(color, value) ... ] ..}
+        self.starting_dice = starting_dice  
+
+        self.available_dice = self.assign_polarity() 
+        # {
+        #   god: {
+        #     "Forbidden": [(color, value) ... ], 
+        #     "Pure": [(color, value) ... ], 
+        #     "Tainted": [(color, value) ... ]
+        #   } 
+        #   ...
+        # }
        
         self.built_statues = {
             "Horus": None, "Ra": None, 
@@ -59,27 +84,27 @@ class Game(object):
             "Thoth": None, "Osiris": None,
             "Papyrus_Bread": None, "Limestone_Granite": None,
             "Temple_Horizontal": None, "Temple_Vertical": None
-        } #{None, Bot, Player}
+        } #One of {None, Bot, Player}
 
         self.built_osiris_buildings = {
-            "Papyrus": [None, None, None, None, None, None], #{None, Bot, Player}
+            "Papyrus": [None, None, None, None, None, None], 
             "Bread": [None, None, None, None, None, None],
             "Limestone": [None, None, None, None, None, None],
             "Granite": [None, None, None, None, None, None],
-        }
+        } #One of {None, Bot, Player}
 
         self.built_temple_buildings = {
-            "Horizontal": [None, None, None, None, None], #{None, Bot, Player}
-            "Vertical": [None, None, None, None, None], #{None, Bot, Player}
-        }
+            "Horizontal": [None, None, None, None, None], 
+            "Vertical": [None, None, None, None, None], 
+        } #One of {None, Bot, Player} 
 
         self.built_temple_pillars = [
-            [None, None, None, None, None], #{None, Bot, Player)}
+            [None, None, None, None, None], 
             [None, None, None, None, None],
             [None, None, None, None, None],
             [None, None, None, None, None],
             [None, None, None, None, None],
-        ]
+        ] #One of {None, Bot, Player}
         
         self.vps = 0
         self.scribes = 0
@@ -97,10 +122,13 @@ class Game(object):
         
         self.build_statue(1)
         
-        if difficulty=="Medium":
+        if difficulty=="Medium" or difficulty=="Hard":
             self.build_osiris_building(5, "Bread")
             self.build_osiris_building(5, "Granite")
             self.build_pillar(None, setup=True)     
+        
+        if difficulty=="Hard":
+            self.build_statue(4)
         
         self.bot_pyramid = random.sample(BOT_BASE_ACTIONS, 10)
         print("Bot action pyramid is:\n {}\n{}\n{}\n{}".format(
@@ -110,8 +138,17 @@ class Game(object):
         self.bot_actions = random.choice(POSSIBLE_BOT_ACTIONS)
         print("Debug. Bot actions order {}".format(self.bot_actions))
             
-    
     def build_statue(self, value):
+        """
+        Build a statue following Horus action logic with die value.
+
+        Build on God. If occupied, build on biggest impact Osiris. If none, build on Temple with most pillars. Score 3VPs if still not possible.
+
+        Params:
+          - value (int): 1-6
+        Returns:
+          - boolean. True if succesfully built, False otherwise
+        """
         if self.number_built_statues==TOTAL_STATUES:
             print("Cannot build more statues\n")
             return False
@@ -129,8 +166,8 @@ class Game(object):
                 for region in group:
                     statue = [self.built_statues[r] for r in self.built_statues if region in r][0]
                     if statue == None:
-                        new_winner = self.osiris_building_scoring(region, "Bot")
-                        old_winner = self.osiris_building_scoring(region, None)
+                        new_winner, _, _ = self.osiris_building_scoring(region, "Bot")
+                        old_winner, _, _ = self.osiris_building_scoring(region, None)
                         if new_winner!=old_winner:
                             impact += 1
                 impacts[group] = impact
@@ -184,9 +221,20 @@ class Game(object):
         return True
                
     def build_osiris_building(self, value, resource=None):
+        """
+        Build an Osiris Building following Osiris action logic with die value and resource.
+
+        Build on spot referenced by resource, value. If occupied, cycle through resources first and values descending next.
+
+        Params:
+          - value (int), resource (str): 1-6, One of {Papyrus, .. Granite}
+        Returns:
+          - boolean. True if succesfully built, False otherwise
+        """
+
         if self.number_built_buildings==TOTAL_BUILDINGS:
             print("Cannot build more buildings\n")
-            return
+            return False
         
         start = OSIRIS_ORDER.index(resource)
         resource_order = OSIRIS_ORDER[start:] + OSIRIS_ORDER[:start] #to cycle through the order
@@ -202,11 +250,23 @@ class Game(object):
         print("Bot builds it's {}th building on Osiris {}, {}".format(
             self.number_built_buildings, resource, value+1))
         print("All Osiris buildings built are {}\n".format(self.built_osiris_buildings))
+        return True
              
     def build_pillar(self, value, setup=False):
+        """
+        Build a Pillar following Ra action logic with die value.
+
+        Build on spot with most VPs gain. If multiple, pick most inline with Temple Buildings. Random if still tied.
+
+        Params:
+          - value (int), setup (bool): 1-6. Set to true to seed board with pillar on 2,2 without scoring VPs
+        Returns:
+          - boolean. True if succesfully built, False otherwise
+        """
+
         if self.number_built_pillars==TOTAL_PILLARS:
             print("Cannot build more pillars\n")
-            return
+            return False
         
         if setup:
             final_row, final_col = 2,2
@@ -288,13 +348,26 @@ class Game(object):
         print("Bot builds it's {}th pillar on {},{}".format(
             self.number_built_pillars, final_row, final_col))
         print("All pillars built are {}\n".format(self.built_temple_pillars))
+        return True
         
     def build_temple_building(self, value):
+        """
+        Build a Temple Building following Hathor action logic with die value.
+
+        Build on spot with most VPs gain. Random if tied.
+
+        Params:
+          - value (int): 1-6
+        Returns:
+          - boolean. True if succesfully built, False otherwise
+        """
+
         if self.number_built_buildings==TOTAL_BUILDINGS:
             print("Cannot build more buildings\n")
-            return
+            return False
 
         all_pillars = {}
+        # Count number of pillars on Horizontal and Vertical lines for all spots.
         for i in range(5):
             if self.built_temple_buildings["Horizontal"][i] == None:
                 num_pillars = [self.built_temple_pillars[i][j] for j in range(5)].count("Bot")
@@ -320,8 +393,13 @@ class Game(object):
         print("Bot builds it's {}th building on Temple {}, {}".format(
             self.number_built_buildings, position, row))
         print("All Temple buildings built are {}\n".format(self.built_temple_buildings))
+        return True
 
     def assign_polarity(self):
+        """
+        Based on lighting condition, classify polarity of self.starting_dice. Called on every Rotation Phase.
+        Returns: self.available_dice
+        """
         dice = self.starting_dice
         start = GOD_ORDER.index(self.first_sunny)
         sunny_gods = GOD_ORDER[start%6], GOD_ORDER[(start+1)%6]
@@ -346,8 +424,10 @@ class Game(object):
         return available_dice
                     
     def statue_bonus(self, god):
+        """
+        Horus rewards for bot. VP, Scribe or both. Depends on randomized Horus order.
+        """
         god_pos = self.horus_order.index(god)
-        # 01 23 45
         if 0<=god_pos<=1:
             self.scribes += 1
             print("Bot has statue on {}. Bot collects 1 scribe".format(god))
@@ -358,8 +438,17 @@ class Game(object):
             self.scribes += 1
             self.vps += 1
             print("Bot has statue on {}. Bot collects 1 scribe and 1 VP".format(god))
+        return 
 
     def player_turn(self, round_number):
+        """
+        User input loop to accept die selection, and board state changes. Board state changes loop till "Stop" user input.
+        Retry on incorrect input.
+
+        Params:
+          - round_number (int): 1-16
+
+        """
         print("Round {}, Player turn".format(round_number))
         print("Available dice:")
         self.print_dice()
@@ -439,8 +528,122 @@ class Game(object):
                 continue
 
         print("Player turn done")
+        return True
   
+    def bot_turn(self, round_number):
+        """
+        Main bot action selection according to pyramid. 
+        
+        For god action, evaluate highest available dice. Pure if tied. Random otherwise. Move to next God if None.
+        For resource action, evaluate highest dice of that color. Statue if tied. Highest if multuple. Random if no statue. Next color if none.
+        
+        Params:
+          - round_number (int): 1-16
+        """
+
+        print("Round {}, Bot turn".format(round_number))
+        print("Available dice:")
+        self.print_dice()
+
+        action_number = self.bot_actions[(round_number-1)%4]
+        action = self.bot_pyramid[action_number]
+
+        def god_die_pick(god):
+            # pick highest pure/tainted
+            candidates = {polarity:dice for polarity,dice in self.available_dice[god].items() if polarity!="Forbidden"}
+            shortlist = {}
+            polarity, final_pick = None, None
+            maxval = -999
+            for polarity, dice in candidates.items():
+                for d in dice:
+                    maxval = max(maxval, d[1])
+            
+            for polarity, dice in candidates.items():
+                shortlist[polarity] = []
+                for d in dice:
+                    if d[1]==maxval:
+                        shortlist[polarity].append(d)
+            
+            if shortlist["Pure"]:
+                polarity, final_pick = "Pure", random.choice(shortlist["Pure"])
+            elif shortlist["Tainted"]:
+                polarity, final_pick = "Tainted", random.choice(shortlist["Tainted"])
+
+            return polarity, final_pick
+
+        def color_die_pick(color):
+            # pick highest of that color
+            maxval = -999
+            for god, polarities in self.available_dice.items():
+                for polarity, dice in polarities.items():
+                    for d in dice:
+                        if d[0]==color and polarity!="Forbidden":
+                            maxval = max(maxval, d[1])                
+            
+            candidates = []
+            for god, polarities in self.available_dice.items():
+                for polarity, dice in polarities.items():
+                    for d in dice:
+                        if d[0]==color and d[1]==maxval and polarity!="Forbidden":
+                            candidates.append((god, polarity, d))
+            
+            if len(candidates)==1:
+                return candidates[0]
+            elif len(candidates)==0:
+                return None, None, None
+            else:
+                shortlist = [x for x in candidates if self.built_statues[x[0]]=="Bot"]
+                print("SL", shortlist)
+                if shortlist:
+                    for god in self.horus_order[::-1]:
+                        for x in shortlist:
+                            if x[0]==god:
+                                return x
+                else:
+                    return random.choice(candidates)
+
+            
+        if action in GOD_ORDER:
+            activated_god = action
+            while True:
+                polarity, die_pick = god_die_pick(activated_god)
+                if die_pick:
+                    break
+                else:         
+                    current = GOD_ORDER.index(activated_god)
+                    activated_god = GOD_ORDER[(current-1)%6]
+                    continue
+
+        else:
+            colors = action.split('/')
+            i=0
+            while True:
+                activated_god, polarity, die_pick = color_die_pick(colors[i])
+                if die_pick:
+                    break
+                else:
+                    i+=1
+                    continue
+
+        print("Bot selects action {} :: {} {} {} {}\n".format(action, activated_god, polarity, die_pick[0], die_pick[1]))
+        self.available_dice[activated_god][polarity].remove(die_pick)
+        self.starting_dice[activated_god].remove(die_pick)
+        #Statue bonus check
+        if self.built_statues[activated_god]=="Player": 
+            print("Player has statue on {}. Collect bonus.\n".format(activated_god))
+        elif self.built_statues[activated_god]=="Bot":
+            self.statue_bonus(activated_god)
+
+        self.do_bot_action(activated_god, die_pick[0], die_pick[1])
+
     def do_bot_action(self, activated_god, color, value):
+        """
+        Evaluate the bot action with the selection
+        Params:
+          - activated_god (str): {Horus ... Osiris}
+          - color (str): {Papyrus ... Granite}
+          - value (int): 1-6
+        """
         if activated_god == "Horus":
             self.build_statue(value)
 
@@ -522,102 +725,18 @@ class Game(object):
                 resource = color
             self.build_osiris_building(value, resource)
 
-    def bot_turn(self, round_number):
-        print("Round {}, Bot turn".format(round_number))
-        print("Available dice:")
-        self.print_dice()
-
-        action_number = self.bot_actions[(round_number-1)%4]
-        action = self.bot_pyramid[action_number]
-
-        def god_die_pick(god):
-            # pick highest pure/tainted
-            candidates = {polarity:dice for polarity,dice in self.available_dice[god].items() if polarity!="Forbidden"}
-            shortlist = {}
-            polarity, final_pick = None, None
-            maxval = -999
-            for polarity, dice in candidates.items():
-                for d in dice:
-                    maxval = max(maxval, d[1])
-            
-            for polarity, dice in candidates.items():
-                shortlist[polarity] = []
-                for d in dice:
-                    if d[1]==maxval:
-                        shortlist[polarity].append(d)
-            
-            if shortlist["Pure"]:
-                polarity, final_pick = "Pure", random.choice(shortlist["Pure"])
-            elif shortlist["Tainted"]:
-                polarity, final_pick = "Tainted", random.choice(shortlist["Tainted"])
-
-            return polarity, final_pick
-
-        def color_die_pick(color):
-            maxval = -999
-            for god, polarities in self.available_dice.items():
-                for polarity, dice in polarities.items():
-                    for d in dice:
-                        if d[0]==color and polarity!="Forbidden":
-                            maxval = max(maxval, d[1])                
-            
-            candidates = []
-            for god, polarities in self.available_dice.items():
-                for polarity, dice in polarities.items():
-                    for d in dice:
-                        if d[0]==color and d[1]==maxval and polarity!="Forbidden":
-                            candidates.append((god, polarity, d))
-            
-            if len(candidates)==1:
-                return candidates[0]
-            elif len(candidates)==0:
-                return None, None, None
-            else:
-                shortlist = [x for x in candidates if self.built_statues[x[0]]=="Bot"]
-                print("SL", shortlist)
-                if shortlist:
-                    for god in self.horus_order[::-1]:
-                        for x in shortlist:
-                            if x[0]==god:
-                                return x
-                else:
-                    return random.choice(candidates)
-
-            
-        if action in GOD_ORDER:
-            activated_god = action
-            while True:
-                polarity, die_pick = god_die_pick(activated_god)
-                if die_pick:
-                    break
-                else:         
-                    current = GOD_ORDER.index(activated_god)
-                    activated_god = GOD_ORDER[(current-1)%6]
-                    continue
-
-        else:
-            colors = action.split('/')
-            i=0
-            while True:
-                activated_god, polarity, die_pick = color_die_pick(colors[i])
-                if die_pick:
-                    break
-                else:
-                    i+=1
-                    continue
-
-        print("Bot selects action {} :: {} {} {} {}\n".format(action, activated_god, polarity, die_pick[0], die_pick[1]))
-        self.available_dice[activated_god][polarity].remove(die_pick)
-        self.starting_dice[activated_god].remove(die_pick)
-        #Statue bonus check
-        if self.built_statues[activated_god]=="Player": 
-            print("Player has statue on {}. Collect bonus.\n".format(activated_god))
-        elif self.built_statues[activated_god]=="Bot":
-            self.statue_bonus(activated_god)
-
-        self.do_bot_action(activated_god, die_pick[0], die_pick[1])
-
     def osiris_building_scoring(self, region, statue):
+        """
+        Select winner of the Osiris region.
+        Most pieces. Topmost piece if tied.
+
+        Params:
+          - region (str): {Papyrus ... Granite}
+          - statue (str): {None, Bot, Player}
+        Returns:
+          - winner (str): {None, Bot, Player}
+          - player_count, bot_count (int): Pieces per player
+        """
         pieces = [statue] + self.built_osiris_buildings[region]
         bot_count, player_count = pieces.count("Bot"), pieces.count("Player")
         winner = None
@@ -636,15 +755,19 @@ class Game(object):
             assert player_count == 0
             assert bot_count == 0
         
-        return winner
+        return winner, player_count, bot_count
 
     def temple_scoring(self):
+        """
+        Calculate VPs scored by Player and Bot for Pillars and Temple Buildings
+        """
         pieces = self.built_temple_buildings["Horizontal"] + self.built_temple_buildings["Vertical"] + [self.built_statues["Temple_Horizontal"], self.built_statues["Temple_Vertical"]]
         bot_count, player_count = pieces.count("Bot"), pieces.count("Player")
         self.vps += bot_count
         print("Player scores {} VPs. Bot scores {} VPs for Temple Buildings".format(player_count, bot_count))
 
         def pillar_scoring(who):
+            # pillar VPs for Bot/Player
             vps = 0
             for r in range(5):
                 for c in range(5):
@@ -662,11 +785,17 @@ class Game(object):
         print("Player scores {} VPs. Bot scores {} VPs for Temple Pillars".format(player_count, bot_count))
 
     def statue_scoring(self):
+        """
+        Statue VPs for Bot. 1/3/6/10...
+        """
         statue_vps = int((self.number_built_statues * (1+self.number_built_statues))/2)
         self.vps += statue_vps
         print("Bot scores {} VPs for Statues".format(statue_vps))
 
     def happiness_scoring(self):
+        """
+        Happiness VPs for Bot. 3*triangles reached.
+        """
         if self.happiness>=21:
             happy_vps = 15
         elif 19<=self.happiness<21:
@@ -684,12 +813,18 @@ class Game(object):
         print("Bot scores {} VPs for Happinness".format(happy_vps))
 
     def card_scoring(self):
+        """
+        Card VPs for Bot. 2 per blessing (discard), 2 per tech (keep)
+        """
         blessing_vps, tech_vps = 2*self.blessings, 2*self.technologies
         self.vps += blessing_vps+tech_vps
         self.blessings = 0
         print("Bot scored {} VPs for Blessings and {} VPs for Techs".format(blessing_vps, tech_vps))
 
     def print_dice(self):
+        """
+        Helper function to pretty print the available dice
+        """
         base = ""
         for god in self.available_dice:
             base += "{}\n".format(god)
@@ -698,7 +833,9 @@ class Game(object):
         print(base)
 
     def game_loop(self):
-        
+        """
+        Main game flow loop to iterate 1-16 rounds. Turns in player order. Trigger Rotation, Maat, Scoring and End when applicable.
+        """
         for round_number in range(1,17):
             
             if self.player_order[0] == "Player":
@@ -714,11 +851,11 @@ class Game(object):
                 self.first_sunny = GOD_ORDER[start%6]
                 
                 if round_number%4==0:
-                    print("Maat Phase #{}".format(round_number/4))
+                    print("Maat Phase #{}".format(round_number//4))
 
                     # Check balance, assign turn order
                     player_balance = int(input("What is the absolute value of Player balance?: "))
-                    bot_balance = max(4-(round_number/4), 1)
+                    bot_balance = max(4-(round_number/4), 1) #3,2,1,1
                     if player_balance<bot_balance:
                         print("Player goes first\n")
                         self.player_order = ["Player", "Bot"]
@@ -742,7 +879,7 @@ class Game(object):
 
                         for region in self.built_osiris_buildings:
                             statue = [self.built_statues[r] for r in self.built_statues if region in r][0]
-                            winner = self.osiris_building_scoring(region, statue)
+                            winner, player_count, bot_count = self.osiris_building_scoring(region, statue)
                             if winner=="Player":
                                 print("Player has {} pieces, Bot has {} in Osiris {}. Player scores 3 VPs".format(player_count, bot_count, region))
                             elif winner=="Bot":
@@ -759,6 +896,7 @@ class Game(object):
                         print("Scoring summary: Bot scored {} VPs".format(self.vps))
 
                         if round_number%16==0:
+                            # 3 VPs for being first, 4 per decree, 0.5 per scribe
                             to_vps = 0
                             if self.player_order[0]=="Bot":
                                 to_vps = 3                    
